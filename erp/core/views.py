@@ -1,4 +1,4 @@
-from django.shortcuts import render,redirect
+from django.shortcuts import render,redirect,get_object_or_404
 from django.http import HttpResponse
 from .models import Product
 from .forms import ProductForm
@@ -53,3 +53,23 @@ def add_product(request):
         'form':form
     }
     return render(request,'core/product_form.html',context)
+
+def edit_product(request,id):
+    try:
+        product = Product.objects.get(id = id)
+        # product = get_object_or_404(Product,id = id) # PReferred alternative to try, except block
+        form = ProductForm(instance = product)
+        if request.method == 'POST':
+            form = ProductForm(request.POST)
+            if form.is_valid():
+                form.save()
+                print('form saved')
+                return redirect('home')
+            else:
+                print('form not saved, validation failed!!!!')
+        context = {
+            'form':form
+        }
+        return render(request,'core/product_form.html',context)
+    except Exception as e:
+        return render(request,'core/error.html',{'message':"Object does not exist"}) 
