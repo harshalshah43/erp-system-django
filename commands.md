@@ -34,3 +34,6 @@ NameError: name 'Products' is not defined. Did you mean: 'Product'?
 <Product: Product object (3)>
 >>> Product.objects.all()
 <QuerySet [<Product: Product object (1)>, <Product: Product object (2)>, <Product: Product object (3)>]>
+
+pip3 install django-crispy-forms
+pip3 install crispy-bootstrap5
