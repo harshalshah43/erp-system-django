@@ -36,8 +36,8 @@ def home(request):
     # return HttpResponse('<h1>Hello World!!</h1>')
 
 # Create your views here.
-def about(requests):
-    return HttpResponse('<h1>Hello World!! This is my About Page</h1>')
+def about(request):
+    return render(request,'core/about.html')
 
 def add_product(request):
     form = ProductForm()
@@ -73,3 +73,8 @@ def edit_product(request,id):
         return render(request,'core/product_form.html',context)
     except Exception as e:
         return render(request,'core/error.html',{'message':"Object does not exist"}) 
+
+def delete_product(request,id):
+    product = get_object_or_404(Product,id = id)
+    product.delete()
+    return redirect('home')

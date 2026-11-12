@@ -1,6 +1,230 @@
 <html>
     <title>About Page</title>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    </head>
     <body>
-        <h1>This is my About Page</h1>
+        <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarSupportedContent">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li class="nav-item">
+                <a class="nav-link" href="{% url 'home' %}">Home</a>
+                </li>
+                <li class="nav-item">
+                <a class="nav-link active" aria-current="page" href="{% url 'about' %}">About</a>
+                </li>
+                <li class="nav-item">
+                <a class="nav-link" href="{% url 'add-product' %}">Add Product</a>
+                </li>
+            </ul>
+            </div>
+        </div>
+        </nav>
+
+        <div class="container my-4">
+
+            <!-- Header -->
+            <div class="text-center mb-4">
+                <h1>Harshal Shah</h1>
+                <h5 class="text-muted">AI Engineer</h5>
+                <p class="mb-1">Mumbai, India &middot; <a href="mailto:harshalshah43@gmail.com">harshalshah43@gmail.com</a></p>
+                <a href="https://www.linkedin.com/in/harshal-shah-39164423" target="_blank" rel="noopener">LinkedIn</a>
+            </div>
+
+            <!-- Summary -->
+            <h3 class="border-bottom border-dark pb-1">Summary</h3>
+            <p>
+                AI Engineer with 12+ years of experience, including 4.5+ years designing and deploying
+                agentic AI systems using <strong>LangChain</strong>, <strong>LangGraph</strong> and
+                <strong>AutoGen</strong> to automate complex business logic and data extraction tasks.
+                Proven track record in architectural optimization, having reduced system latency and prompt
+                token overhead through non-monolithic agent design and dynamic tool-calling. Deeply proficient
+                in the <strong>AWS ecosystem</strong> (Bedrock, Lambda, SAM), with success building
+                high-accuracy autonomous pipelines for trade reconciliation, invoice translation and
+                structured NER from unstructured communication channels.
+            </p>
+
+            <!-- Experience -->
+            <h3 class="border-bottom border-dark pb-1 mt-4">Experience</h3>
+
+            <div class="mb-4">
+                <div class="d-flex justify-content-between flex-wrap">
+                    <div>
+                        <h5 class="mb-0">Automation and AI Consultant</h5>
+                        <strong>Plan.Net TechNest India</strong>
+                    </div>
+                    <span class="text-muted">August 2025 &ndash; Present &middot; Mumbai, India</span>
+                </div>
+                <ul class="mt-2">
+                    <li><strong>Agentic AI system:</strong> AI-driven ticket creation and querying system, focused on tool design, system architecture (reducing latency by 40%) and business logic implementation.</li>
+                    <li><strong>Prompt refinement and optimisation:</strong> Translated business rules into concise AI instructions, cutting token overhead by 20%.</li>
+                    <li><strong>Observability:</strong> Debugging and monitoring agentic behaviour.</li>
+                    <li><strong>Tool development and orchestration:</strong> Designed tools around the agent for incident ticket querying, prompt optimization and business-rule enforcement, reducing a 3-step process to 1.</li>
+                    <li><strong>Prompt management:</strong> Built a non-monolithic agent architecture where the system prompt and user query drive dynamic instruction retrieval via tool calls before final execution, reducing system prompt size by almost 90% and cost by 70%.</li>
+                    <li><strong>Invoice Translator tool:</strong> Designed a scalable invoice translation pipeline using AWS Bedrock Agents, Amazon Textract and Translate with controlled concurrency and parallel page processing, using Apache PDFBox (Java) for PDF handling in a serverless AWS SAM setup, achieving a translation success rate of up to 95%.</li>
+                </ul>
+            </div>
+
+            <div class="mb-4">
+                <div class="d-flex justify-content-between flex-wrap">
+                    <div>
+                        <h5 class="mb-0">Sr Executive Data Scientist</h5>
+                        <strong>Motilal Oswal Financial Services Ltd</strong>
+                    </div>
+                    <span class="text-muted">May 2023 &ndash; April 2025</span>
+                </div>
+                <ul class="mt-2">
+                    <li><strong>Trade reconciliation:</strong> Automated capture of information from client audio, email, PDF and WhatsApp using speech-to-text and LLMs for NER.</li>
+                    <li>Reconciled captured information with client trade data, achieving 70% accuracy on captured and reconciled data.</li>
+                    <li>Built and deployed the entire data collection, preprocessing and transformation pipeline on AWS.</li>
+                    <li><strong>SPMF:</strong> Analysed user click behaviour on sequential data using PrefixSpan and Markov Chain models.</li>
+                    <li>Discovered the most frequent trade patterns between trading and non-trading clients.</li>
+                    <li><strong>Graph database:</strong> Clustered clients using Neo4j and showcased graph databases for retrieving and collecting data across datasets.</li>
+                    <li><strong>Email clustering/classification:</strong> Organized emails by the context of subject and body using NLP.</li>
+                </ul>
+            </div>
+
+            <div class="mb-4">
+                <div class="d-flex justify-content-between flex-wrap">
+                    <div>
+                        <h5 class="mb-0">Probation</h5>
+                        <strong>Motilal Oswal Financial Services Ltd</strong>
+                    </div>
+                    <span class="text-muted">November 2022 &ndash; May 2023</span>
+                </div>
+                <ul class="mt-2">
+                    <li>Evaluated and benchmarked multiple speech-to-text APIs on dispersed audio datasets for downstream NLP processing.</li>
+                    <li>Built proof-of-concept pipelines for Named Entity Recognition on transcribed trade conversations.</li>
+                    <li>Contributed to early experimentation with LLM APIs and prompt engineering for internal productivity use cases.</li>
+                    <li>End-to-end implementation of the trade reconciliation project using a speech-to-text and entity extraction solution.</li>
+                    <li>Developed a prototype document-based question answering chatbot using ChatGPT and prompt engineering.</li>
+                </ul>
+            </div>
+
+            <div class="mb-4">
+                <div class="d-flex justify-content-between flex-wrap">
+                    <div>
+                        <h5 class="mb-0">Jr Data Scientist</h5>
+                        <strong>Citroen Switchgears Pvt Ltd</strong>
+                    </div>
+                    <span class="text-muted">November 2021 &ndash; November 2022</span>
+                </div>
+                <ul class="mt-2">
+                    <li><strong>Digital transformation:</strong> Moved the company from fragmented email-based tracking to a centralized Django-based ERP, consolidating enquiry data for over 2000 product categories into a single searchable database.</li>
+                    <li><strong>Data-driven decisions:</strong> Built an enquiry analytics tool mapping many-to-many relationships, letting staff track high-demand items and repeat customer interests to prioritize high-value leads.</li>
+                    <li><strong>Operational efficiency:</strong> Automated lead assignment and status tracking, reducing average customer response time by 50% across 300+ enquiries per month.</li>
+                    <li><strong>Inventory synchronization:</strong> Designed and deployed a multi-location inventory management system giving real-time stock visibility across godowns.</li>
+                </ul>
+            </div>
+
+            <div class="mb-4">
+                <div class="d-flex justify-content-between flex-wrap">
+                    <div>
+                        <h5 class="mb-0">Educator &ndash; Mathematics &amp; Programming</h5>
+                    </div>
+                    <span class="text-muted">March 2012 &ndash; November 2021</span>
+                </div>
+                <ul class="mt-2">
+                    <li>Delivered courses in Applied Statistics, Python and Django web development.</li>
+                </ul>
+            </div>
+
+            <!-- Projects -->
+            <h3 class="border-bottom border-dark pb-1 mt-4">Projects</h3>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">Learning Management System</h5>
+                            <h6 class="card-subtitle mb-2 text-muted">Django, Python</h6>
+                            <ul class="ps-3 mb-0">
+                                <li>Role-based web portal for assignment tracking, grading and submission management.</li>
+                                <li>File upload handling, deadline-based submission controls and automated email notifications.</li>
+                                <li>Secure authentication flows with user-type identification, personalized dashboards and URL injection prevention.</li>
+                                <li>Complex relational models and optimized query logic for assignment and grading workflows.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">Inventory Management System</h5>
+                            <h6 class="card-subtitle mb-2 text-muted">Django, Python</h6>
+                            <ul class="ps-3 mb-0">
+                                <li>Web-based inventory tracking across multiple warehouse locations.</li>
+                                <li>Inbound/outbound tracking modules with real-time stock visibility.</li>
+                                <li>Role-based access control and reporting dashboards for operational monitoring.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">Inbox Miner</h5>
+                            <h6 class="card-subtitle mb-2 text-muted">GenAI, Open-source LLMs</h6>
+                            <ul class="ps-3 mb-0">
+                                <li>Custom NER on customer emails to extract critical information, reducing manual effort by up to 70%.</li>
+                                <li>Extracted data is structured and populated into Excel automatically for access and collaboration across departments.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">Quotation Management System</h5>
+                            <h6 class="card-subtitle mb-2 text-muted">CRM Tool, Django</h6>
+                            <ul class="ps-3 mb-0">
+                                <li>CRM-integrated quotation system for a distribution business, consolidating 60% of enquiry data.</li>
+                                <li>Dynamic quotation creation with pricing, discount logic and GST calculations, reducing manual effort by up to 38%.</li>
+                                <li>Searchable, filterable views by customer, product, month and item code, cutting response time from 1.5 hours to 25 minutes.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Education -->
+            <h3 class="border-bottom border-dark pb-1 mt-4">Education</h3>
+            <div class="mb-2">
+                <strong>Post Graduate Course in Artificial Intelligence and Machine Learning</strong><br>
+                Great Learning, Bangalore &middot; November 2020 &ndash; January 2021
+            </div>
+            <div class="mb-3">
+                <strong>Bachelor's Degree in Engineering (Information Technology)</strong><br>
+                Shah and Anchor Kutchhi Engineering College, Mumbai &middot; 2009
+            </div>
+
+            <!-- Skills -->
+            <h3 class="border-bottom border-dark pb-1 mt-4">Skills</h3>
+            <table class="table table-bordered">
+                <tr>
+                    <th style="width: 25%;">Generative AI &amp; Agentic Workflows</th>
+                    <td>Agentic AI orchestration (AutoGen, LangGraph, LangChain), tool-calling agents, prompt engineering &amp; versioning, AWS Bedrock (Agents &amp; Knowledge Bases), Named Entity Recognition (NER)</td>
+                </tr>
+                <tr>
+                    <th>Cloud &amp; AI Infrastructure</th>
+                    <td>AWS (S3, Lambda, SageMaker, Textract, Translate, Redshift), AWS CDK, AWS SAM, CI/CD pipelines, high-performance computing for AI</td>
+                </tr>
+                <tr>
+                    <th>Languages &amp; Frameworks</th>
+                    <td>Python (AutoGen, LangGraph, LangChain, Django, Flask), Java (Apache PDFBox), full-stack development</td>
+                </tr>
+                <tr>
+                    <th>Database Systems</th>
+                    <td>Neo4j (graph DB), PostgreSQL, MySQL, Amazon Aurora, Amazon Redshift</td>
+                </tr>
+            </table>
+
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
     </body>
 </html>
