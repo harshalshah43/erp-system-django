@@ -1,10 +1,16 @@
 {% extends 'core/base.html' %}
 {% block content %}
+{% if messages %}
+    {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+{% endif %}
 <table class = "table table-striped">
     <tr>
         <th>Name</th>
         <th>Description</th>
         <th>Price</th>
+        <th>Stock</th>
         <th colspan="2">Actions</th>
         
     </tr>
@@ -13,6 +19,7 @@
             <td>{{product.name}}</td>
             <td>{{product.description}}</td>
             <td>{{product.price}}</td>
+            <td>{% if product.stock_quantity == 0 %}<span class="badge bg-danger">Out of stock</span>{% else %}{{product.stock_quantity}}{% endif %}</td>
             <td><a href="{% url 'edit-product' product.id %}"><button class="btn btn-primary">Edit</button></td>
             <td><a href="{% url 'delete-product' product.id %}"><button class="btn btn-danger">Delete</button></td>
         </tr>
@@ -22,5 +29,11 @@
     <button class = "btn btn-dark">
         Add Product
     </button>
+</a>
+<a href = "{% url 'stock-transaction' %}">
+    <button class = "btn btn-secondary">Stock Transaction</button>
+</a>
+<a href = "{% url 'stock-take' %}">
+    <button class = "btn btn-secondary">Stock Take</button>
 </a>
 {% endblock %}

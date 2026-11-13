@@ -1,0 +1,11 @@
+{% extends 'core/base.html' %}
+{% load crispy_forms_tags %}
+{% block content %}
+    <h2>Stock Take</h2>
+    <p>Enter the counted quantity for each product. Differences are saved as adjustment documents.</p>
+    <form method="POST">
+        {% csrf_token %}
+        {{ form|crispy }}
+        <button type="submit" class="btn btn-dark">Save Stock Take</button>
+    </form>
+{% endblock %}
