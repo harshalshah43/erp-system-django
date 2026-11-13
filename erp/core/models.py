@@ -1,43 +1,77 @@
-from django.db import models, transaction
-from django.db.models import F
+from django.conf import settings
+from django.db import models
+from django.db.models import Q
 
 
 class Product(models.Model):
     name = models.CharField(max_length=200)
-    description = models.TextField(blank = True)
+    description = models.TextField(blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
-    stock_quantity = models.IntegerField(default=0)
+    # Running total of this product's stock moves. Only core.services.post_document
+    # changes it, which is why it is not editable in forms or the admin.
+    stock_quantity = models.IntegerField(default=0, editable=False)
+    # Products with stock history are archived instead of deleted.
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(stock_quantity__gte=0), name="product_stock_not_negative"
+            ),
+        ]
 
     def __str__(self):
         return self.name
 
 
 class StockDocument(models.Model):
-    """An incoming (receipt) or outgoing (issue) document for a product."""
-    INCOMING = "IN"
-    OUTGOING = "OUT"
-    TYPE_CHOICES = [(INCOMING, "Incoming"), (OUTGOING, "Outgoing")]
+    """Header for one posted stock change: a transaction, a stock take, etc.
 
-    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name="documents")
-    doc_type = models.CharField(max_length=3, choices=TYPE_CHOICES)
-    quantity = models.PositiveIntegerField()
+    Documents are never edited or deleted. A mistake is corrected by posting a
+    reversal (core.services.reverse_document).
+    """
+
+    class Kind(models.TextChoices):
+        TRANSACTION = "TXN", "Stock transaction"
+        STOCK_TAKE = "TAKE", "Stock take"
+        OPENING = "OPEN", "Opening balance"
+        REVERSAL = "REV", "Reversal"
+
+    kind = models.CharField(max_length=4, choices=Kind.choices)
     note = models.CharField(max_length=255, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    # Set on a reversal. One-to-one, so a document can only be reversed once.
+    reverses = models.OneToOneField(
+        "self", null=True, blank=True,
+        on_delete=models.PROTECT, related_name="reversed_by",
+    )
 
-    def save(self, *args, **kwargs):
-        # Stock is only adjusted when the document is first created.
-        if self.pk:
-            return super().save(*args, **kwargs)
-        with transaction.atomic():
-            product = Product.objects.select_for_update().get(pk=self.product_id)
-            if self.doc_type == self.OUTGOING:
-                if product.stock_quantity < self.quantity:
-                    raise ValueError("Not enough stock for this outgoing document.")
-                product.stock_quantity = F("stock_quantity") - self.quantity
-            else:
-                product.stock_quantity = F("stock_quantity") + self.quantity
-            product.save(update_fields=["stock_quantity"])
-            super().save(*args, **kwargs)
+    class Meta:
+        ordering = ["-created_at", "-pk"]
 
     def __str__(self):
-        return f"{self.get_doc_type_display()} {self.quantity} x {self.product}"
+        return f"{self.get_kind_display()} #{self.pk}"
+
+
+class StockMove(models.Model):
+    """One line of a document: a signed change to one product's stock.
+
+    Positive is incoming, negative is outgoing. A product's stock_quantity
+    always equals the sum of its moves (see `manage.py check_stock`).
+    """
+
+    document = models.ForeignKey(StockDocument, on_delete=models.PROTECT, related_name="lines")
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name="moves")
+    quantity = models.IntegerField()
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=~Q(quantity=0), name="stockmove_quantity_not_zero"),
+        ]
+
+    def __str__(self):
+        return f"{self.quantity:+d} x {self.product}"

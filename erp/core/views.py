@@ -1,13 +1,13 @@
 from django.shortcuts import render,redirect,get_object_or_404
 from django.http import HttpResponse
 import json
-from django.db import transaction
-from django.db.models import Q
+from django.db.models import ProtectedError, Q
 from django.http import JsonResponse
 from django.urls import reverse
 from django.contrib import messages
 from .models import Product, StockDocument
-from .forms import ProductForm, StockTakeForm
+from .forms import ProductForm
+from .services import StockError, post_document
 
 
 # products = [
@@ -31,7 +31,7 @@ from .forms import ProductForm, StockTakeForm
 
 # Create your views here.
 def home(request):
-    products = Product.objects.all()
+    products = Product.objects.filter(is_active=True)
     context = {
                 'message':'Hi!! Kamakshi!',
                 'subtext':'You are too early, the site is in construction',
@@ -66,7 +66,7 @@ def edit_product(request,id):
         # product = get_object_or_404(Product,id = id) # PReferred alternative to try, except block
         form = ProductForm(instance = product)
         if request.method == 'POST':
-            form = ProductForm(request.POST)
+            form = ProductForm(request.POST, instance = product)
             if form.is_valid():
                 form.save()
                 print('form saved')
@@ -81,12 +81,20 @@ def edit_product(request,id):
         return render(request,'core/error.html',{'message':"Object does not exist"}) 
 
 def delete_product(request,id):
-    product = get_object_or_404(Product,id = id)
+    product = get_object_or_404(Product,id = id, is_active = True)
     if request.method == 'POST':
-        product.delete()
+        try:
+            product.delete()
+        except ProtectedError:
+            # Stock moves point at this product, and they are kept forever.
+            product.is_active = False
+            product.save(update_fields=['is_active'])
+            messages.info(request, f"{product.name} has stock history, so it was archived instead of deleted.")
         return redirect('home')
     else:
         message = "Are you sure you wish to delete this product?"
+        if product.moves.exists():
+            message = f"{product.name} has stock history, so it will be archived (hidden) instead of deleted. Continue?"
         context = {
             'message':message,
             'product':product
@@ -95,60 +103,84 @@ def delete_product(request,id):
 
 
 def product_search(request):
-    """JSON product list for the cart page: filter by name/id, 15 per page."""
+    """JSON product list for the stock pages: filter by name/id, 15 per page."""
     q = request.GET.get('q', '').strip()
     try:
         page = max(1, int(request.GET.get('page', 1)))
     except ValueError:
         page = 1
     size = 15
-    qs = Product.objects.all()
+    qs = Product.objects.filter(is_active=True)
     if q:
         cond = Q(name__icontains=q)
         if q.isdigit():
             cond |= Q(pk=int(q))
         qs = qs.filter(cond)
+    # Fetch one extra row to know if there is a next page, without a COUNT query.
     rows = list(qs.order_by('name', 'pk')[(page - 1) * size:page * size + 1])
     results = [{'id': p.pk, 'name': p.name, 'stock': p.stock_quantity} for p in rows[:size]]
     return JsonResponse({'results': results, 'page': page, 'has_next': len(rows) > size})
 
-def stock_transaction(request):
-    """Cart-style page; POST is JSON {note, lines:[{product, type, quantity}]}.
-    All lines save or none do."""
+
+def _transaction_line(line):
+    """{product, type: IN|OUT, quantity} -> (product_id, signed quantity)"""
+    qty = int(line['quantity'])
+    if qty < 1:
+        raise StockError("Quantities must be 1 or more.")
+    if line['type'] not in ('IN', 'OUT'):
+        raise StockError("Each line must be Add or Remove.")
+    return int(line['product']), qty if line['type'] == 'IN' else -qty
+
+
+def _stock_take_line(line):
+    """{product, counted, expected} -> (product_id, counted - expected)
+
+    `expected` is the stock the counter saw when they added the line. Posting
+    the difference (rather than overwriting stock with the count) keeps any
+    receipts or issues saved by someone else while the count was in progress.
+    """
+    counted = int(line['counted'])
+    if counted < 0:
+        raise StockError("Counted quantities can't be negative.")
+    return int(line['product']), counted - int(line['expected'])
+
+
+def _stock_page(request, kind, parse_line):
+    """Shared GET/POST handling for the two cart-style stock pages.
+
+    POST body is JSON {note, lines: [...]}; each line is parsed by parse_line.
+    Lines with no change are dropped. Everything saves or nothing does.
+    """
+    take = kind == StockDocument.Kind.STOCK_TAKE
     if request.method != 'POST':
-        return render(request, 'core/stock_transaction.html')
+        return render(request, 'core/stock_cart.html', {
+            'title': 'Stock Take' if take else 'Stock Transaction',
+            'mode': 'take' if take else 'transaction',
+        })
     try:
         data = json.loads(request.body)
-        lines = [(int(l['product']), l['type'], int(l['quantity'])) for l in data['lines']]
-        if not lines or any(t not in ('IN', 'OUT') or q < 1 for _, t, q in lines):
-            raise ValueError("Add at least one item with a quantity of 1 or more.")
         note = str(data.get('note', ''))[:255]
-        # Incoming first so a receipt and an issue in the same cart can offset.
-        lines.sort(key=lambda l: l[1] != 'IN')
-        with transaction.atomic():
-            for pid, t, q in lines:
-                StockDocument.objects.create(product_id=pid, doc_type=t, quantity=q, note=note)
-    except (ValueError, KeyError, TypeError) as e:
-        return JsonResponse({'error': str(e) or "Invalid request."}, status=400)
-    except Product.DoesNotExist:
-        return JsonResponse({'error': "Unknown product in cart."}, status=400)
-    messages.success(request, "Stock transaction saved.")
+        lines = [parse_line(line) for line in data['lines']]
+        if not lines:
+            raise StockError("The list is empty. Pick items from the list on the right.")
+        lines = [(pid, qty) for pid, qty in lines if qty]
+        if lines:
+            user = request.user if request.user.is_authenticated else None
+            doc = post_document(kind, lines, note=note, user=user)
+    except StockError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    except (ValueError, KeyError, TypeError, AttributeError):
+        return JsonResponse({'error': "Invalid request."}, status=400)
+    if not lines:
+        messages.info(request, "Every count matched the stock on record, so nothing was adjusted.")
+    else:
+        messages.success(request, f"{doc} saved.")
     return JsonResponse({'redirect': reverse('home')})
 
+
+def stock_transaction(request):
+    return _stock_page(request, StockDocument.Kind.TRANSACTION, _transaction_line)
+
+
 def stock_take(request):
-    """Enter counted quantities; differences become IN/OUT documents."""
-    form = StockTakeForm(request.POST or None)
-    if request.method == 'POST' and form.is_valid():
-        with transaction.atomic():
-            for p in form.products:
-                diff = form.cleaned_data[f"p{p.pk}"] - p.stock_quantity
-                if diff:
-                    StockDocument.objects.create(
-                        product=p,
-                        doc_type=StockDocument.INCOMING if diff > 0 else StockDocument.OUTGOING,
-                        quantity=abs(diff),
-                        note="Stock take adjustment",
-                    )
-        messages.success(request, "Stock take saved.")
-        return redirect('home')
-    return render(request, 'core/stock_take.html', {'form': form})
+    return _stock_page(request, StockDocument.Kind.STOCK_TAKE, _stock_take_line)

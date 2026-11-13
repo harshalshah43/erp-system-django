@@ -11,7 +11,10 @@ import django
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "erp.settings")
 django.setup()
 
-from core.models import Product  # noqa: E402
+from django.db import transaction  # noqa: E402
+
+from core.models import Product, StockDocument  # noqa: E402
+from core.services import post_document  # noqa: E402
 
 PRODUCTS = [
     ("Laptop", "14-inch business laptop, 16GB RAM", "899.99", 25),
@@ -31,7 +34,14 @@ PRODUCTS = [
     ("Notebook Pack", "Pack of 5 ruled notebooks", "12.50", 200),
 ]
 
-created = Product.objects.bulk_create(
-    [Product(name=n, description=d, price=Decimal(p), stock_quantity=q) for n, d, p, q in PRODUCTS]
-)
+with transaction.atomic():
+    created = [
+        Product.objects.create(name=n, description=d, price=Decimal(p)) for n, d, p, _ in PRODUCTS
+    ]
+    # Stock goes in through an opening-balance document, like any other stock change.
+    post_document(
+        StockDocument.Kind.OPENING,
+        [(product.pk, qty) for product, (*_, qty) in zip(created, PRODUCTS) if qty],
+        note="Seed data",
+    )
 print(f"Inserted {len(created)} products. Total now: {Product.objects.count()}")

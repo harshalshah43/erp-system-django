@@ -10,7 +10,9 @@ import django
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "erp.settings")
 django.setup()
 
-from core.models import Product, StockDocument  # noqa: E402
+from django.db import transaction  # noqa: E402
+
+from core.models import Product, StockDocument, StockMove  # noqa: E402
 
 NAMES = [
     "Laptop", "Wireless Mouse", "Mechanical Keyboard", '27" Monitor',
@@ -19,9 +21,14 @@ NAMES = [
     "Notebook Pack",
 ]
 
-products = Product.objects.filter(name__in=NAMES)
-# Documents are PROTECTed against product deletion, so remove them first.
-docs_deleted, _ = StockDocument.objects.filter(product__in=products).delete()
-products_deleted, _ = products.delete()
-print(f"Deleted {products_deleted} products and {docs_deleted} stock documents. "
-      f"Total now: {Product.objects.count()}")
+# Stock history is normally permanent (PROTECT), so this dev-only script
+# removes those products' moves first, then any documents left with no lines.
+with transaction.atomic():
+    products = Product.objects.filter(name__in=NAMES)
+    moves_deleted, _ = StockMove.objects.filter(product__in=products).delete()
+    empty = StockDocument.objects.filter(lines__isnull=True)
+    empty.update(reverses=None)  # a reversal PROTECTs the document it reverses
+    docs_deleted, _ = empty.delete()
+    products_deleted, _ = products.delete()
+print(f"Deleted {products_deleted} products, {moves_deleted} stock moves and "
+      f"{docs_deleted} empty stock documents. Total now: {Product.objects.count()}")
