@@ -1,5 +1,16 @@
 {% extends 'core/base.html' %}
 {% block content %}
+<style>
+    /* IN | OUT switch: both labels always visible, the active side is filled. */
+    .io-toggle { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid #adb5bd;
+                 border-radius: 999px; background: #f8f9fa; cursor: pointer; }
+    .io-toggle span { padding: 2px 14px; border-radius: 999px; font-size: .85rem;
+                      font-weight: 600; color: #6c757d; }
+    .io-toggle[data-dir="IN"] .io-in { background: #198754; color: #fff; }
+    .io-toggle[data-dir="OUT"] .io-out { background: #dc3545; color: #fff; }
+    .io-toggle:focus-visible { outline: 3px solid rgba(13, 110, 253, .5); outline-offset: 2px; }
+    .io-toggle.io-sm span { padding: 1px 10px; font-size: .75rem; }
+</style>
 <div class="container-fluid mt-3">
     <h2>{{ title }}</h2>
     {% if mode == 'take' %}
@@ -17,6 +28,31 @@
             <tr><th>Product</th><th>In stock</th><th>Action</th><th style="width: 200px;">Quantity</th><th></th></tr>
             {% endif %}
         </thead>
+        {% if mode != 'take' %}
+        {# Entry line: pick an item on the right, Enter flips IN/OUT, Tab to Qty, Enter adds. #}
+        <tbody class="table-light">
+            <tr id="entry-row">
+                <td id="entry-name" class="text-muted">Pick an item from the list →</td>
+                <td id="entry-stock"></td>
+                <td>
+                    <button id="entry-dir" type="button" class="io-toggle" role="switch" aria-checked="false"
+                            aria-label="Direction" data-dir="IN" title="Enter or click to switch (← IN, → OUT)">
+                        <span class="io-in">IN</span><span class="io-out">OUT</span>
+                    </button>
+                </td>
+                <td><div class="input-group input-group-sm">
+                    {# tabindex -1: Tab goes from the switch straight to the quantity #}
+                    <button id="entry-minus" type="button" class="btn btn-outline-secondary" tabindex="-1">−</button>
+                    <input id="entry-qty" type="number" min="1" value="1" class="form-control text-center" aria-label="Quantity">
+                    <button id="entry-plus" type="button" class="btn btn-outline-secondary" tabindex="-1">+</button>
+                </div></td>
+                <td class="text-nowrap">
+                    <button id="entry-add" type="button" class="btn btn-sm btn-dark">Add line</button>
+                    <button id="entry-clear" type="button" class="btn btn-sm btn-link text-secondary" tabindex="-1" title="Clear this line">✕</button>
+                </td>
+            </tr>
+        </tbody>
+        {% endif %}
         <tbody id="cart"></tbody>
     </table>
     <p id="empty" class="text-muted">Nothing added yet. Pick items from the list on the right.</p>
@@ -31,7 +67,7 @@
             <div class="card-header">
                 <strong>Items</strong>
                 <input id="search" type="text" class="form-control mt-2" autocomplete="off"
-                       placeholder="Search name or ID (Enter adds first match)" autofocus>
+                       placeholder="Search name or ID (Enter picks first match)" autofocus>
             </div>
             <div id="results" class="list-group list-group-flush"></div>
             <div class="card-footer d-flex justify-content-between align-items-center">
@@ -52,9 +88,17 @@
     const cart = [];
     const $ = id => document.getElementById(id);
     const search = $('search'), results = $('results'), body = $('cart');
-    let timer, hits = [], page = 1, hasNext = false;
+    let timer, hits = [], page = 1, hasNext = false, loadedQuery = null, reqSeq = 0;
 
+    function showError(msg) { $('error').textContent = msg; $('error').classList.remove('d-none'); }
+    function hideError() { $('error').classList.add('d-none'); }
     function fmtDiff(n) { return n > 0 ? '+' + n : String(n); }
+
+    function toggleHtml(type, i) {
+        return `<button type="button" class="io-toggle io-sm" role="switch" aria-checked="${type === 'OUT'}"
+                    aria-label="Direction" data-dir="${type}" data-i="${i}" data-flip="1" title="Click to switch">
+                    <span class="io-in">IN</span><span class="io-out">OUT</span></button>`;
+    }
 
     function rowHtml(l, i) {
         if (TAKE) {
@@ -65,10 +109,7 @@
                 <td data-diff="${i}" class="${d ? 'fw-bold' : 'text-muted'}">${fmtDiff(d)}</td>
                 <td><button class="btn btn-sm btn-outline-danger" data-i="${i}" data-rm="1">✕</button></td>`;
         }
-        const sel = `<select class="form-select form-select-sm" data-i="${i}" data-f="type">
-            <option value="IN"${l.type === 'IN' ? ' selected' : ''}>Add (incoming)</option>
-            <option value="OUT"${l.type === 'OUT' ? ' selected' : ''}>Remove (outgoing)</option></select>`;
-        return `<td></td><td>${l.stock}</td><td>${sel}</td>
+        return `<td></td><td>${l.stock}</td><td>${toggleHtml(l.type, i)}</td>
             <td><div class="input-group input-group-sm">
                 <button class="btn btn-outline-secondary" data-i="${i}" data-d="-1">−</button>
                 <input type="number" min="1" class="form-control text-center" value="${l.qty}" data-i="${i}" data-f="qty">
@@ -90,27 +131,94 @@
         $('save').disabled = cart.length === 0;
     }
 
-    function add(p) {
+    // ---- Entry line (stock transaction only) ----
+    // Direction carries over to the next line, so a run of receipts or issues
+    // only needs Tab past the switch.
+    const entry = {product: null, type: 'IN'};
+    const eDir = $('entry-dir'), eQty = $('entry-qty');
+
+    function renderEntry() {
+        const p = entry.product, name = $('entry-name');
+        name.textContent = p ? p.name : 'Pick an item from the list →';
+        name.classList.toggle('text-muted', !p);
+        name.classList.toggle('fw-bold', !!p);
+        $('entry-stock').textContent = p ? p.stock : '';
+        eDir.dataset.dir = entry.type;
+        eDir.setAttribute('aria-checked', entry.type === 'OUT');
+        const q = parseInt(eQty.value) || 0;
+        $('entry-row').classList.toggle('table-warning', !!p && entry.type === 'OUT' && q > p.stock);
+    }
+
+    function clearEntry() {
+        entry.product = null;
+        eQty.value = 1;
+        renderEntry();
+    }
+
+    function addLine() {
+        const p = entry.product, q = parseInt(eQty.value);
+        if (!p) { showError('Pick an item from the list first.'); search.focus(); return; }
+        if (!(q >= 1)) { showError('Quantity must be 1 or more.'); eQty.focus(); return; }
+        hideError();
+        const ex = cart.find(l => l.id === p.id && l.type === entry.type);
+        if (ex) ex.qty += q;
+        else cart.push({id: p.id, name: p.name, stock: p.stock, type: entry.type, qty: q});
+        clearEntry();
+        render();
+        search.focus(); search.select();
+    }
+
+    if (!TAKE) {
+        // A button fires click on Enter and Space, so both flip the switch.
+        eDir.addEventListener('click', () => {
+            entry.type = entry.type === 'IN' ? 'OUT' : 'IN';
+            renderEntry();
+        });
+        eDir.addEventListener('keydown', e => {
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                e.preventDefault();
+                entry.type = e.key === 'ArrowLeft' ? 'IN' : 'OUT';
+                renderEntry();
+            }
+        });
+        const step = d => { eQty.value = Math.max(1, (parseInt(eQty.value) || 1) + d); renderEntry(); };
+        $('entry-minus').addEventListener('click', () => step(-1));
+        $('entry-plus').addEventListener('click', () => step(1));
+        eQty.addEventListener('focus', () => eQty.select());
+        eQty.addEventListener('input', renderEntry);
+        eQty.addEventListener('keydown', e => {
+            if (e.key === 'Enter') { e.preventDefault(); addLine(); }
+        });
+        $('entry-add').addEventListener('click', addLine);
+        $('entry-clear').addEventListener('click', () => { clearEntry(); hideError(); search.focus(); });
+    }
+
+    // Choosing an item from the list (click, or Enter in the search box).
+    function pick(p) {
+        if (TAKE) return addCounted(p);
+        entry.product = p;
+        hideError();
+        renderEntry();
+        eDir.focus();
+    }
+
+    function addCounted(p) {
         let i = cart.findIndex(l => l.id === p.id);
-        if (i >= 0 && !TAKE) cart[i].qty++;
         if (i < 0) {
-            cart.push(TAKE ? {id: p.id, name: p.name, stock: p.stock, counted: p.stock}
-                           : {id: p.id, name: p.name, stock: p.stock, type: 'IN', qty: 1});
+            cart.push({id: p.id, name: p.name, stock: p.stock, counted: p.stock});
             i = cart.length - 1;
         }
         render();
-        if (TAKE) {   // jump straight to the count box
-            const box = body.querySelector(`input[data-i="${i}"]`);
-            box.focus(); box.select();
-        } else {
-            search.focus();
-        }
+        const box = body.querySelector(`input[data-i="${i}"]`);   // jump straight to the count box
+        box.focus(); box.select();
     }
 
     async function load() {
-        const r = await fetch("{% url 'product-search' %}?q=" + encodeURIComponent(search.value.trim()) + "&page=" + page);
+        const q = search.value.trim(), seq = ++reqSeq;
+        const r = await fetch("{% url 'product-search' %}?q=" + encodeURIComponent(q) + "&page=" + page);
         const d = await r.json();
-        hits = d.results; hasNext = d.has_next;
+        if (seq !== reqSeq) return;   // a newer search has been sent; ignore this one
+        loadedQuery = q; hits = d.results; hasNext = d.has_next;
         results.innerHTML = '';
         hits.forEach(p => {
             const b = document.createElement('button');
@@ -119,7 +227,7 @@
             const s = document.createElement('span'); s.className = 'badge bg-secondary'; s.textContent = 'stock ' + p.stock;
             const plus = document.createElement('span'); plus.className = 'btn btn-sm btn-dark ms-2'; plus.textContent = '+';
             const right = document.createElement('span'); right.append(s, plus);
-            b.append(n, right); b.onclick = () => add(p);
+            b.append(n, right); b.onclick = () => pick(p);
             results.appendChild(b);
         });
         if (!hits.length) results.innerHTML = '<div class="list-group-item text-muted">No matches</div>';
@@ -131,8 +239,12 @@
         clearTimeout(timer);
         timer = setTimeout(() => { page = 1; load(); }, 200);
     });
-    search.addEventListener('keydown', e => {
-        if (e.key === 'Enter') { e.preventDefault(); if (hits.length) add(hits[0]); }
+    search.addEventListener('keydown', async e => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        // Typed fast and hit Enter before the list refreshed: search first.
+        if (search.value.trim() !== loadedQuery) { clearTimeout(timer); page = 1; await load(); }
+        if (hits.length) pick(hits[0]);
     });
     $('prev').onclick = () => { if (page > 1) { page--; load(); } };
     $('next').onclick = () => { if (hasNext) { page++; load(); } };
@@ -141,6 +253,7 @@
         const t = e.target.closest('button'); if (!t) return;
         const i = +t.dataset.i;
         if (t.dataset.rm) cart.splice(i, 1);
+        else if (t.dataset.flip) cart[i].type = cart[i].type === 'IN' ? 'OUT' : 'IN';
         else if (t.dataset.d) cart[i].qty = Math.max(1, cart[i].qty + +t.dataset.d);
         render();
     });
@@ -154,10 +267,9 @@
         cell.className = d ? 'fw-bold' : 'text-muted';
     });
     body.addEventListener('change', e => {
-        const i = +e.target.dataset.i, f = e.target.dataset.f;
-        if (f === 'qty') cart[i].qty = Math.max(1, parseInt(e.target.value) || 1);
-        if (f === 'type') cart[i].type = e.target.value;
-        if (f === 'counted') return;   // already handled on input
+        if (e.target.dataset.f !== 'qty') return;
+        const i = +e.target.dataset.i;
+        cart[i].qty = Math.max(1, parseInt(e.target.value) || 1);
         render();
     });
     body.addEventListener('keydown', e => {   // Enter in a count box: back to search
@@ -165,6 +277,10 @@
     });
 
     $('save').addEventListener('click', async () => {
+        if (!TAKE && entry.product) {
+            showError('Finish the line you are entering: press Add line, or ✕ to clear it.');
+            return;
+        }
         $('save').disabled = true;
         const lines = cart.map(l => TAKE
             ? {product: l.id, counted: l.counted, expected: l.stock}
@@ -182,7 +298,7 @@
         } catch (err) {
             msg = 'Saving failed. Please try again.';
         }
-        $('error').textContent = msg; $('error').classList.remove('d-none');
+        showError(msg);
         $('save').disabled = false;
     });
     render();

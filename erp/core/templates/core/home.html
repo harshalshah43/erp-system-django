@@ -11,7 +11,7 @@
         <th>Description</th>
         <th>Price</th>
         <th>Stock</th>
-        <th colspan="2">Actions</th>
+        <th colspan="3">Actions</th>
         
     </tr>
     {% for product in products %}
@@ -20,6 +20,7 @@
             <td>{{product.description}}</td>
             <td>{{product.price}}</td>
             <td>{% if product.stock_quantity == 0 %}<span class="badge bg-danger">Out of stock</span>{% else %}{{product.stock_quantity}}{% endif %}</td>
+            <td><a href="{% url 'product-history' product.id %}" class="btn btn-outline-secondary">History</a></td>
             <td><a href="{% url 'edit-product' product.id %}"><button class="btn btn-primary">Edit</button></td>
             <td><a href="{% url 'delete-product' product.id %}"><button class="btn btn-danger">Delete</button></td>
         </tr>

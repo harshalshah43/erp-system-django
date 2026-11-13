@@ -1,11 +1,12 @@
 from django.shortcuts import render,redirect,get_object_or_404
 from django.http import HttpResponse
 import json
-from django.db.models import ProtectedError, Q
+from django.core.paginator import Paginator
+from django.db.models import Count, Exists, F, OuterRef, ProtectedError, Q, Sum, Window
 from django.http import JsonResponse
 from django.urls import reverse
 from django.contrib import messages
-from .models import Product, StockDocument
+from .models import Product, StockDocument, StockMove
 from .forms import ProductForm
 from .services import StockError, post_document
 
@@ -184,3 +185,56 @@ def stock_transaction(request):
 
 def stock_take(request):
     return _stock_page(request, StockDocument.Kind.STOCK_TAKE, _stock_take_line)
+
+
+def product_history(request, id):
+    """Every stock move for one product, newest first, with the balance after each."""
+    product = get_object_or_404(Product, id=id)
+    moves = (
+        StockMove.objects.filter(product=product)
+        .select_related('document', 'document__created_by')
+        # Running total from the oldest move = stock after that move.
+        .annotate(balance=Window(Sum('quantity'), order_by=[F('document_id').asc(), F('pk').asc()]))
+        .order_by('-document_id', '-pk')
+    )
+    page = Paginator(moves, 25).get_page(request.GET.get('page'))
+    return render(request, 'core/product_history.html', {'product': product, 'page': page})
+
+
+DIRECTIONS = {'in': 'Incoming', 'out': 'Outgoing'}
+
+
+def document_list(request):
+    """All stock documents, filterable by direction (incoming/outgoing) and kind."""
+    direction = request.GET.get('direction', '')
+    kind = request.GET.get('kind', '')
+    docs = StockDocument.objects.select_related('created_by')
+    # Exists() rather than filter(lines__...) so the totals below still count every line.
+    if direction == 'in':
+        docs = docs.filter(Exists(StockMove.objects.filter(document=OuterRef('pk'), quantity__gt=0)))
+    elif direction == 'out':
+        docs = docs.filter(Exists(StockMove.objects.filter(document=OuterRef('pk'), quantity__lt=0)))
+    if kind in StockDocument.Kind.values:
+        docs = docs.filter(kind=kind)
+    docs = docs.annotate(
+        line_count=Count('lines'),
+        total_in=Sum('lines__quantity', filter=Q(lines__quantity__gt=0)),
+        total_out=Sum('lines__quantity', filter=Q(lines__quantity__lt=0)),
+    ).order_by('-created_at', '-pk')  # Meta.ordering is dropped for grouped queries
+    page = Paginator(docs, 25).get_page(request.GET.get('page'))
+    return render(request, 'core/document_list.html', {
+        'page': page,
+        'direction': direction if direction in DIRECTIONS else '',
+        'directions': DIRECTIONS,
+        'kind': kind,
+        'kinds': StockDocument.Kind.choices,
+    })
+
+
+def document_detail(request, id):
+    doc = get_object_or_404(StockDocument.objects.select_related('created_by', 'reverses'), id=id)
+    reversed_by = StockDocument.objects.filter(reverses=doc).first()
+    lines = doc.lines.select_related('product').order_by('pk')
+    return render(request, 'core/document_detail.html', {
+        'doc': doc, 'lines': lines, 'reversed_by': reversed_by,
+    })

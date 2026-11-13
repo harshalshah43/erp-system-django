@@ -1,0 +1,1 @@
+<span class="badge {% if doc.kind == 'TXN' %}bg-secondary{% elif doc.kind == 'TAKE' %}bg-info text-dark{% elif doc.kind == 'OPEN' %}bg-primary{% else %}bg-warning text-dark{% endif %}">{{ doc.get_kind_display }}</span>

@@ -1,0 +1,24 @@
+{% extends 'core/base.html' %}
+{% block content %}
+<div class="mt-3">
+    <h2>{{ doc.get_kind_display }} #{{ doc.id }}</h2>
+    <dl class="row">
+        <dt class="col-sm-2">Date</dt><dd class="col-sm-10">{{ doc.created_at|date:"d M Y H:i" }}</dd>
+        <dt class="col-sm-2">Type</dt><dd class="col-sm-10">{% include 'core/_kind_badge.html' %}</dd>
+        {% if doc.note %}<dt class="col-sm-2">Note</dt><dd class="col-sm-10">{{ doc.note }}</dd>{% endif %}
+        {% if doc.created_by %}<dt class="col-sm-2">By</dt><dd class="col-sm-10">{{ doc.created_by }}</dd>{% endif %}
+        {% if doc.reverses %}<dt class="col-sm-2">Reverses</dt><dd class="col-sm-10"><a href="{% url 'document-detail' doc.reverses_id %}">#{{ doc.reverses_id }}</a></dd>{% endif %}
+        {% if reversed_by %}<dt class="col-sm-2">Reversed by</dt><dd class="col-sm-10"><a href="{% url 'document-detail' reversed_by.id %}">#{{ reversed_by.id }}</a></dd>{% endif %}
+    </dl>
+    <table class="table table-striped align-middle">
+        <tr><th>Product</th><th>Change</th></tr>
+        {% for line in lines %}
+        <tr>
+            <td><a href="{% url 'product-history' line.product_id %}">{{ line.product.name }}</a></td>
+            <td>{% include 'core/_qty.html' with qty=line.quantity %}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    <a href="{% url 'documents' %}" class="btn btn-outline-secondary">All documents</a>
+</div>
+{% endblock %}

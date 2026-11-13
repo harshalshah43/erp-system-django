@@ -1,0 +1,30 @@
+{% extends 'core/base.html' %}
+{% block content %}
+<div class="mt-3">
+    <h2>{{ product.name }} <small class="text-muted fs-5">history</small></h2>
+    <p>
+        In stock: <strong>{{ product.stock_quantity }}</strong>
+        {% if not product.is_active %}<span class="badge bg-secondary ms-2">Archived</span>{% endif %}
+    </p>
+    {% if page.object_list %}
+    <table class="table table-striped align-middle">
+        <tr><th>Date</th><th>Document</th><th>Type</th><th>Note</th><th>Change</th><th>Balance</th><th>By</th></tr>
+        {% for move in page %}
+        <tr>
+            <td>{{ move.document.created_at|date:"d M Y H:i" }}</td>
+            <td><a href="{% url 'document-detail' move.document_id %}">#{{ move.document_id }}</a></td>
+            <td>{% include 'core/_kind_badge.html' with doc=move.document %}</td>
+            <td>{{ move.document.note }}</td>
+            <td>{% include 'core/_qty.html' with qty=move.quantity %}</td>
+            <td>{{ move.balance }}</td>
+            <td>{{ move.document.created_by|default:"" }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% include 'core/_pager.html' %}
+    {% else %}
+    <p class="text-muted">No stock movements yet.</p>
+    {% endif %}
+    <a href="{% url 'home' %}" class="btn btn-outline-secondary mt-3">Back</a>
+</div>
+{% endblock %}

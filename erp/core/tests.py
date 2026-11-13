@@ -252,3 +252,50 @@ class CheckStockCommandTests(TestCase):
         with self.assertRaises(CommandError):
             call_command("check_stock", stdout=out)
         self.assertIn("stock 7, moves add up to 5", out.getvalue())
+
+
+class HistoryAndDocumentsTests(TestCase):
+    def setUp(self):
+        self.widget = make_product("Widget", stock=10)           # doc 1: opening +10
+        self.gadget = make_product("Gadget", stock=4)            # doc 2: opening +4
+        self.receipt = post_document(TXN, [(self.widget.pk, 5)], note="Delivery")
+        self.issue = post_document(TXN, [(self.widget.pk, -3), (self.gadget.pk, -1)], note="Order 7")
+        self.mixed = post_document(TXN, [(self.widget.pk, 2), (self.gadget.pk, -2)])
+
+    def test_home_links_to_history(self):
+        self.assertContains(self.client.get("/core/home/"), f"/core/products/{self.widget.pk}/history/")
+
+    def test_history_shows_running_balance_newest_first(self):
+        r = self.client.get(f"/core/products/{self.widget.pk}/history/")
+        rows = [(m.document_id, m.quantity, m.balance) for m in r.context["page"]]
+        self.assertEqual([q for _, q, _ in rows], [2, -3, 5, 10])
+        self.assertEqual([b for _, _, b in rows], [14, 12, 15, 10])
+        self.assertContains(r, "Delivery")
+
+    def test_history_of_archived_product(self):
+        Product.objects.filter(pk=self.widget.pk).update(is_active=False)
+        self.assertContains(self.client.get(f"/core/products/{self.widget.pk}/history/"), "Archived")
+
+    def ids(self, query=""):
+        return {d.pk for d in self.client.get(f"/core/documents/{query}").context["page"]}
+
+    def test_document_filters(self):
+        self.assertEqual(len(self.ids()), 5)
+        self.assertEqual(self.ids("?direction=out"), {self.issue.pk, self.mixed.pk})
+        self.assertNotIn(self.issue.pk, self.ids("?direction=in"))
+        self.assertIn(self.mixed.pk, self.ids("?direction=in"))
+        self.assertEqual(self.ids("?kind=OPEN") & {self.receipt.pk, self.issue.pk}, set())
+        self.assertEqual(self.ids("?direction=in&kind=TXN"), {self.receipt.pk, self.mixed.pk})
+
+    def test_document_totals_count_every_line_when_filtered(self):
+        docs = {d.pk: d for d in self.client.get("/core/documents/?direction=in").context["page"]}
+        mixed = docs[self.mixed.pk]
+        self.assertEqual((mixed.line_count, mixed.total_in, mixed.total_out), (2, 2, -2))
+
+    def test_document_detail_links_reversal(self):
+        rev = reverse_document(self.receipt)
+        r = self.client.get(f"/core/documents/{self.receipt.pk}/")
+        self.assertContains(r, "Reversed by")
+        self.assertContains(r, f"/core/documents/{rev.pk}/")
+        self.assertContains(self.client.get(f"/core/documents/{rev.pk}/"), "Reverses")
+        self.assertEqual(self.client.get("/core/documents/999999/").status_code, 404)

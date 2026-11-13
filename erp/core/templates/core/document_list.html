@@ -1,0 +1,43 @@
+{% extends 'core/base.html' %}
+{% block content %}
+<div class="mt-3">
+    <h2>Documents</h2>
+    <div class="d-flex flex-wrap gap-3 align-items-center mb-3">
+        <ul class="nav nav-pills">
+            <li class="nav-item"><a class="nav-link {% if not direction %}active{% endif %}" href="{% querystring direction=None page=None %}">All</a></li>
+            {% for key, label in directions.items %}
+            <li class="nav-item"><a class="nav-link {% if direction == key %}active{% endif %}" href="{% querystring direction=key page=None %}">{{ label }}</a></li>
+            {% endfor %}
+        </ul>
+        <form method="get" class="d-flex gap-2">
+            {% if direction %}<input type="hidden" name="direction" value="{{ direction }}">{% endif %}
+            <select name="kind" class="form-select form-select-sm" onchange="this.form.submit()" aria-label="Document type">
+                <option value="">All types</option>
+                {% for value, label in kinds %}
+                <option value="{{ value }}" {% if kind == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+    {% if page.object_list %}
+    <table class="table table-striped align-middle">
+        <tr><th>#</th><th>Date</th><th>Type</th><th>Note</th><th>Lines</th><th>In</th><th>Out</th><th>By</th></tr>
+        {% for doc in page %}
+        <tr>
+            <td><a href="{% url 'document-detail' doc.id %}">#{{ doc.id }}</a></td>
+            <td>{{ doc.created_at|date:"d M Y H:i" }}</td>
+            <td>{% include 'core/_kind_badge.html' %}</td>
+            <td>{{ doc.note }}</td>
+            <td>{{ doc.line_count }}</td>
+            <td class="text-success">{% if doc.total_in %}+{{ doc.total_in }}{% endif %}</td>
+            <td class="text-danger">{{ doc.total_out|default:"" }}</td>
+            <td>{{ doc.created_by|default:"" }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% include 'core/_pager.html' %}
+    {% else %}
+    <p class="text-muted">No documents match.</p>
+    {% endif %}
+</div>
+{% endblock %}
